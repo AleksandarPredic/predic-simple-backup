@@ -114,7 +114,7 @@ class Predic_Simple_Backup {
 	}
     
     /**
-	 * Load dependencies and execute all of the hooks with WordPress.
+	 * Load dependencies, loads internationalization files and execute all of the hooks with WordPress.
 	 *
 	 * @since    1.0.0
 	 */
