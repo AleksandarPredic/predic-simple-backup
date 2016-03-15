@@ -4,6 +4,7 @@ I'll be using this plugin to manually backup some of my sites that do not have m
 
 # Installation
 Just install as any other plugin. Visit "Very Simple Backup" admin menu page and click "Backup now" button. Download created files. That's it!!! 
+Please don't forget to delete backed up files when You download them.
 
 # Licence
 Licence: MIT
