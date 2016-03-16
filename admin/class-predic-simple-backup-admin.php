@@ -48,7 +48,7 @@ class Predic_Simple_Backup_Admin {
 
            <div class="psb-admin-page-content">
                <p><?php echo esc_html__( 'This plugin is for small sites that do not need fancy WP plugins for backup jobs. It zip all files from Your WP directory and add database dump into zip.', 'predic-simple-backup' ) ?></p>
-
+               <p><?php echo esc_html__( 'When You click "Backup now" button, please wait untill the proccess is done. Do not navitage away from the page, as this proccess can take long time depending from Your server', 'predic-simple-backup' ) ?></p>
            </div>
 
             <div id="psb-admin-page-form">
@@ -97,6 +97,11 @@ class Predic_Simple_Backup_Admin {
     }
     
     public function make_site_backup() {
+        
+        // Prevent executing on ajax calls
+        if ( defined( 'DOING_AJAX' ) ) {
+            return false;
+        }
 
         /*
         * PHP: Recursively Backup Files & Folders to ZIP-File
@@ -121,8 +126,7 @@ class Predic_Simple_Backup_Admin {
         if ( $this->zipData($directory, $destination) ) {
 
             // redirect to plugin page
-            $admin_page_url = admin_url( 'admin.php?page=' . $this->plugin_admin_page );
-            $this->redirect( $admin_page_url );
+            $this->redirect_to_admin_page();
 
         } else {
             
@@ -134,6 +138,11 @@ class Predic_Simple_Backup_Admin {
     
     // Here the magic happens :)
     private function zipData($directory, $destination) {
+        
+        // Prevent executing on ajax calls
+        if ( defined( 'DOING_AJAX' ) ) {
+            return false;
+        }
 
         $upload_dir = wp_upload_dir();
         // Uploads basedir without slash
@@ -223,15 +232,56 @@ class Predic_Simple_Backup_Admin {
                 continue;
             }
             
-            echo '<li><a href="' . esc_url( $backup_dir_url . '/' . $file ) . '">' . $file . '</a></li>';
+            $filename = $backup_dir . '/' . $file;
+            
+            echo '<li>'
+                    . $file . ' ' . round( filesize( $filename ) / ( 1024 * 1024 ), 2 ) . ' MB '
+                    . '<a href="' . esc_url( $backup_dir_url . '/' . $file ) . '">' . esc_html__( 'Download', 'predic-simple-backup' ) . '</a> '
+                    . '<a class="ptb-delete-backup" href="' . esc_url( esc_url( admin_url('admin-post.php') ) . '?action=delete_predic_simple_backup&psb_delete_file=' . $file ) . '">' . esc_html__( 'Delete', 'predic-simple-backup' ) . '</a>'
+                . '</li>';
         }
         
         echo '</ul>';
         
     }
     
-    private function redirect( $destination ) {
-        wp_redirect( $destination ); 
+    public function delete_backup_file() {
+        
+        // Prevent executing on ajax calls
+        if ( defined( 'DOING_AJAX' ) ) {
+            return false;
+        }
+        
+        $file = isset( $_GET['psb_delete_file'] ) && !empty( $_GET['psb_delete_file'] ) ? sanitize_text_field( $_GET['psb_delete_file'] ) : NULL;
+        
+        if ( empty( $file ) ) {
+            $this->redirect_to_admin_page();
+        }
+        
+        $backup_dir = $this->get_backup_directory();
+        $filename = $backup_dir . '/' . $file;
+        
+        if ( file_exists( $filename ) ) {
+
+            // Delete the file
+            unlink( $filename );
+            
+            // redirect to plugin page
+            $this->redirect_to_admin_page( esc_html__( 'File successfully deleted', 'predic-simple-backup' ), 'notice-success' );
+        }
+ 
+    }
+    
+    
+    private function redirect_to_admin_page( $admin_notice = NULL, $class = NULL  ) {
+        
+        $url = add_query_arg( array(
+            'page' => $this->plugin_admin_page,
+            'ptb_message' => !empty( $admin_notice ) ? urlencode( $admin_notice ) : '',
+            'ptb_message_class' => !empty( $class ) ? urlencode( $class ) : '' 
+        ), admin_url( 'admin.php' ) );
+        
+        wp_redirect( $url ); 
         die();
     }
     
@@ -239,9 +289,40 @@ class Predic_Simple_Backup_Admin {
     * Bypass limit server if possible
     * @since 1.0.0
     */
-   private function bypass_server_limit() {
-       @ini_set('memory_limit','1024M');
-       @ini_set('max_execution_time','0');
-   }
+    private function bypass_server_limit() {
+        @ini_set('memory_limit','1024M');
+        @ini_set('max_execution_time','0');
+    }
+    
+    /*
+     * Classes  notice-error, notice-warning, notice-success, or notice-info
+     */
+    public function add_admin_notice( $message, $class = 'notice-info' ) {
+        
+        // Add admin notice
+        add_action( 'admin_notices', function () use ( $message, $class ) {
+            ?>
+            <div class="notice <?php esc_attr( $class ) ?> is-dismissible">
+                <p><?php echo esc_html( $message ); ?></p>
+            </div>
+            <?php
+        } );
+        
+    }
+    
+    /*
+     * Display message defined in $_GET['ptb_message'] as admin notice 
+     * @since 1.0.0
+     */
+    public function check_and_add_admin_notices() {
+        
+        if ( isset( $_GET['ptb_message'] ) && !empty( $_GET['ptb_message'] ) ) {
+            
+            $class = isset( $_GET['ptb_message_class'] ) && !empty( $_GET['ptb_message_class'] ) ? $_GET['ptb_message_class'] : '';
+            
+            $this->add_admin_notice( $_GET['ptb_message'], $class );
+        }
+        
+    }
     
 }
