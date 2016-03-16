@@ -302,7 +302,7 @@ class Predic_Simple_Backup_Admin {
         // Add admin notice
         add_action( 'admin_notices', function () use ( $message, $class ) {
             ?>
-            <div class="notice <?php esc_attr( $class ) ?> is-dismissible">
+            <div class="notice <?php echo esc_attr( $class ) ?> is-dismissible">
                 <p><?php echo esc_html( $message ); ?></p>
             </div>
             <?php
