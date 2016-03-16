@@ -93,6 +93,12 @@ class Predic_Simple_Backup {
         
         // Add backup process action
         add_action( 'admin_post_start_predic_simple_backup', array( $plugin_admin, 'make_site_backup' ) );
+        
+        // Add delete backup file action
+        add_action( 'admin_post_delete_predic_simple_backup', array( $plugin_admin, 'delete_backup_file' ) );
+        
+        // Chekc for $_GET params and add admin notices for each
+        add_action( 'init', array( $plugin_admin, 'check_and_add_admin_notices' ) );
     }
     
     /**
@@ -119,9 +125,23 @@ class Predic_Simple_Backup {
 	 * @since    1.0.0
 	 */
 	public function run() {
-		$this->load_dependencies();
-        $this->set_locale();
-        $this->define_admin_hooks();
+        // Load only for admin
+        if ( is_admin() ) {
+            $this->load_dependencies();
+            $this->set_locale();
+            $this->define_admin_hooks();
+        }
 	}
+    
+    /**
+	 * Abort loading all plugin hooks and show admin notice
+	 *
+	 * @since    1.0.0
+	 */
+    public function abort() {
+        $this->load_dependencies();
+        $plugin_admin = new Predic_Simple_Backup_Admin( $this->plugin_name, $this->version );
+        $plugin_admin->add_admin_notice( esc_html__( 'Very simple backup for WordPress requires at least PHP version 5.3.0', 'predic-simple-backup' ), 'notice-error' );
+    }
     
 }
