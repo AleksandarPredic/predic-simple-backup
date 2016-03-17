@@ -110,7 +110,8 @@ class Predic_Simple_Backup_Admin {
         // Define files and folders
         $backup_files_dir = $this->get_backup_directory();
         if ( ! $backup_files_dir ) {
-            wp_die( esc_html__( 'Directory to store backup files does not exist' ) );
+            // Directory in uploads folder could not be created
+            $this->redirect_to_admin_page( esc_html__( 'Directory to store backup files does not exist', 'predic-simple-backup' ), 'notice-error' );
         }
 
         // Folder to backup and zip name and path
@@ -118,26 +119,24 @@ class Predic_Simple_Backup_Admin {
         $destination = $backup_files_dir . '/' . $zip_name; // Destination dir and filename
         $directory = ABSPATH; // The folder which you archivate
         
-        
         // Make sure the script can handle large folders/files
         $this->bypass_server_limit();
 
         // Start the backup!
         if ( $this->zipData($directory, $destination) ) {
 
-            // redirect to plugin page
-            $this->redirect_to_admin_page();
+            $this->redirect_to_admin_page( esc_html__( 'Backup archive successfully created', 'predic-simple-backup' ), 'notice-success' );
 
         } else {
             
-            wp_die( esc_html__( 'Something went wront while archiving the site.' ) );
+            $this->redirect_to_admin_page( esc_html__( 'Something went wrong. Backup archive could not be created', 'predic-simple-backup' ), 'notice-error' );
             
         }
         
     }
     
     // Here the magic happens :)
-    private function zipData($directory, $destination) {
+    private function zipData( $directory, $destination ) {
         
         // Prevent executing on ajax calls
         if ( defined( 'DOING_AJAX' ) ) {
@@ -151,49 +150,69 @@ class Predic_Simple_Backup_Admin {
         $database_add_to_root = sanitize_file_name( 'database-' . DB_NAME . date("Y-m-d") ) . '.sql';
         $database_filename = $uploads_basedir . '/' . $database_add_to_root;
 
-        if (extension_loaded('zip')) {
+        if ( extension_loaded( 'zip' ) ) {
             
-            if (file_exists($directory)) {
+            if ( file_exists( $directory ) ) {
                 
                 $zip = new ZipArchive();
 
-                if ($zip->open($destination, ZIPARCHIVE::CREATE)) {
+                if ( $zip->open( $destination, ZIPARCHIVE::CREATE ) ) {
 
-                        $directory = realpath($directory);
+                        $directory = realpath( $directory );
                         
-                        if (is_dir($directory)) {
+                        if ( is_dir( $directory ) ) {
                             
-                            $iterator = new RecursiveDirectoryIterator($directory);
+                            $iterator = new RecursiveDirectoryIterator( $directory );
                             // skip dot files while iterating 
-                            $iterator->setFlags(RecursiveDirectoryIterator::SKIP_DOTS);
-                            $files = new RecursiveIteratorIterator($iterator, RecursiveIteratorIterator::SELF_FIRST);
+                            $iterator->setFlags( RecursiveDirectoryIterator::SKIP_DOTS );
+                            $files = new RecursiveIteratorIterator( $iterator, RecursiveIteratorIterator::SELF_FIRST );
                             
-                            foreach ($files as $file) {
-                                $file = realpath($file);
-                                if (is_dir($file)) {
-                                        $zip->addEmptyDir(str_replace($directory . '/', '', $file . '/'));
+                            foreach ( $files as $file ) {
+                                $file = realpath( $file );
+                                if ( is_dir( $file ) ) {
+                                        $zip->addEmptyDir( str_replace( $directory . '/', '', $file . '/' ) );
                                 } else if (is_file($file)) {
-                                        $zip->addFromString(str_replace($directory . '/', '', $file), file_get_contents($file));
+                                        $zip->addFromString( str_replace($directory . '/', '', $file ), file_get_contents( $file ) );
                                 }
                             }
                             
-                        } else if (is_file($directory)) {
-                                $zip->addFromString(basename($directory), file_get_contents($directory));
+                        } else if ( is_file( $directory ) ) {
+                                $zip->addFromString( basename( $directory ), file_get_contents( $directory ) );
                         }
 
                         // Try to export database and add it to the zip
                         try {
-                            exec('mysqldump --add-drop-table --user=' . DB_USER . ' --password=' . DB_PASSWORD . ' --host=' . DB_HOST . ' ' . DB_NAME . ' > ' . $database_filename);
-                            $zip->addFromString(str_replace($directory . '/', '', $database_add_to_root), file_get_contents($database_filename));
-                            unlink($database_filename);
-                            
-                           
 
-                           // echo "<span style='color:green;'>database export file is added to zip file.<br /></span> " ;
+                            exec('mysqldump --add-drop-table --user=' . DB_USER . ' --password=' . DB_PASSWORD . ' --host=' . DB_HOST . ' ' . DB_NAME . ' > ' . $database_filename);
+                            
+                            // If database dump file created
+                            if ( file_exists( $database_filename ) ) {
+
+                                $database_file_content = file_get_contents( $database_filename );
+                                
+                                // If error while dumping file will be empty
+                                if ( empty( $database_file_content ) ) {
+                                    
+                                    unlink( $database_filename );
+                                    $zip->close();
+                                    $this->redirect_to_admin_page( esc_html__( 'Database backup file could not be exported', 'predic-simple-backup' ), 'notice-warning' );
+                                    
+                                }
+
+                                // Add database file to zip and delete created file
+                                $zip->addFromString( str_replace( $directory . '/', '', $database_add_to_root ), $database_file_content );
+                                unlink( $database_filename );
+                            
+                            } else {
+                                
+                                $zip->close();
+                                $this->redirect_to_admin_page( esc_html__( 'Database backup file could not be created', 'predic-simple-backup' ), 'notice-warning' );
+                            }
 
                         } catch(Exception $e) {
                             
-                            wp_die( esc_html__( 'Error message (there was something wrong while exporting database): ', 'predic-simple-backup' ) .$e->getMessage() );
+                            $zip->close();
+                            $this->redirect_to_admin_page( $e->getMessage(), 'notice-error' );
 
                         }
 
@@ -201,7 +220,7 @@ class Predic_Simple_Backup_Admin {
 
                 if ( $zip->close() ) {
                     // Set mode for newly created archive file
-                    chmod($destination, 0644);
+                    chmod( $destination, 0644 );
                     return true;
                 } else {
                     return false;
