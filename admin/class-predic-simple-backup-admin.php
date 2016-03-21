@@ -18,6 +18,11 @@ class Predic_Simple_Backup_Admin {
 
 	}
     
+    /**
+	 * Add admin menu page
+	 *
+	 * @since    1.0.0
+	 */
     public function add_menu_page() {
         add_menu_page( 
             $this->plugin_public_name . esc_html__( 'Options', 'predic-simple-backup' ), //  The text to be displayed in the title tags of the page when the menu is selected
@@ -30,17 +35,16 @@ class Predic_Simple_Backup_Admin {
         );
     }
     
+    /**
+	 * Render admin menu page html
+	 *
+	 * @since    1.0.0
+	 */
     public function render_admin_page() {
+        
         if ( !current_user_can( 'manage_options' ) )  {
             wp_die( __( 'You do not have sufficient permissions to access this page.' ) );
         }
-        
-        /*
-         * DODATI OVDE NOUNCE ZA SVAKI SLUCAJ
-         * 
-         * napraviti da se dole listaju svi backup zip arhive sa velicinama fajla i datumom
-         */
-        
         ?>
 
         <div class="psb-admin-page wrap">
@@ -60,17 +64,21 @@ class Predic_Simple_Backup_Admin {
         </div>
 
         <?php
-        // List all backed files
+        // List all backed files with delete option
         $this->list_backup_files();
     }
     
-    /*
-     * dir or url
+    /**
+	 * Return backup directory (where backups are stored) path or url
+	 *
+	 * @since    1.0.0
+     * @param   string   $parth_or_url   What to return "dir" for directory, "url" for url
      * 
-     * return path without trailing slash
-     */
+     * @return  string   Return backup directory path or url. No tailing slash at the end
+	 */
     private function get_backup_directory( $parth_or_url = 'dir' ) {
         
+        // Name of the backup directory
         $dir_name = 'predic-simple-backup';
         
         // Define files and folders
@@ -96,16 +104,17 @@ class Predic_Simple_Backup_Admin {
         
     }
     
+    /**
+	 * Recursively Backup Files & Folders to ZIP-File and store it to backup directory. Redirect to homepage after that
+	 *
+	 * @since    1.0.0
+	 */
     public function make_site_backup() {
         
         // Prevent executing on ajax calls
         if ( defined( 'DOING_AJAX' ) ) {
             return false;
         }
-
-        /*
-        * PHP: Recursively Backup Files & Folders to ZIP-File
-        */
         
         // Define files and folders
         $backup_files_dir = $this->get_backup_directory();
@@ -123,7 +132,7 @@ class Predic_Simple_Backup_Admin {
         $this->bypass_server_limit();
 
         // Start the backup!
-        if ( $this->zipData($directory, $destination) ) {
+        if ( $this->zipData( $directory, $destination ) ) {
 
             $this->redirect_to_admin_page( esc_html__( 'Backup archive successfully created', 'predic-simple-backup' ), 'notice-success' );
 
@@ -135,7 +144,15 @@ class Predic_Simple_Backup_Admin {
         
     }
     
-    // Here the magic happens :)
+    /**
+	 * Create ZIP backup file
+	 *
+	 * @since    1.0.0
+     * @param   string   $directory   Path of the directory to backup
+     * @param   string   $destination   Path of the destination directory
+     * 
+     * @return   boolean   True or false
+	 */
     private function zipData( $directory, $destination ) {
         
         // Prevent executing on ajax calls
@@ -234,8 +251,14 @@ class Predic_Simple_Backup_Admin {
         
     }
     
+    /**
+	 * List all backup files under the backup folder for the user to download or delete
+	 *
+	 * @since    1.0.0
+	 */
     private function list_backup_files() {
         
+        // Get backup directory
         $backup_dir = $this->get_backup_directory();
         $backup_dir_url = $this->get_backup_directory( 'url' );
         
@@ -243,6 +266,7 @@ class Predic_Simple_Backup_Admin {
         
         echo '<h3>' . esc_html__( 'List of backups', 'predic-simple-backup' ) . '</h3>';
         
+        // Make list of backup files
         echo '<ul>';
         
         foreach ( $files as $file ) {
@@ -264,6 +288,11 @@ class Predic_Simple_Backup_Admin {
         
     }
     
+    /**
+	 * Delete backup file from backup directory
+	 *
+	 * @since    1.0.0
+	 */
     public function delete_backup_file() {
         
         // Prevent executing on ajax calls
@@ -271,10 +300,11 @@ class Predic_Simple_Backup_Admin {
             return false;
         }
         
+        // Get file to delete
         $file = isset( $_GET['psb_delete_file'] ) && !empty( $_GET['psb_delete_file'] ) ? sanitize_text_field( $_GET['psb_delete_file'] ) : NULL;
         
         if ( empty( $file ) ) {
-            $this->redirect_to_admin_page();
+            $this->redirect_to_admin_page( esc_html__( 'Please select file to delete', 'predic-simple-backup' ), 'notice-warning' );
         }
         
         $backup_dir = $this->get_backup_directory();
@@ -291,7 +321,13 @@ class Predic_Simple_Backup_Admin {
  
     }
     
-    
+    /**
+	 * Manage redirects and messages. Function check_and_add_admin_notices check for GET params and adds admin notices
+	 *
+	 * @since    1.0.0
+     * @param   string   $message   Message to add as $_GET param
+     * @param   string   $class   Css class to add as $_GET param. Can use these classes: notice-error, notice-warning, notice-success, or notice-info
+	 */
     private function redirect_to_admin_page( $admin_notice = NULL, $class = NULL  ) {
         
         $url = add_query_arg( array(
@@ -305,17 +341,23 @@ class Predic_Simple_Backup_Admin {
     }
     
     /**
-    * Bypass limit server if possible
-    * @since 1.0.0
-    */
+	 * Bypass limit server if possible
+	 *
+	 * @since    1.0.0
+	 */
     private function bypass_server_limit() {
         @ini_set('memory_limit','1024M');
         @ini_set('max_execution_time','0');
     }
     
-    /*
-     * Classes  notice-error, notice-warning, notice-success, or notice-info
-     */
+    /**
+	 * Add admin notice
+	 *
+	 * @since    1.0.0
+     * @param   string   $message   Message for admin notice
+     * @param   string   $class   Css class for admin notice
+     * 
+	 */
     public function add_admin_notice( $message, $class = 'notice-info' ) {
         
         // Add admin notice
@@ -330,7 +372,8 @@ class Predic_Simple_Backup_Admin {
     }
     
     /*
-     * Display message defined in $_GET['ptb_message'] as admin notice 
+     * Display message defined in $_GET['ptb_message'] as admin notice, also set admin notice class
+     * 
      * @since 1.0.0
      */
     public function check_and_add_admin_notices() {
