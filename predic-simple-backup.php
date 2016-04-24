@@ -11,7 +11,7 @@
  * License URI:       
  * 
  * Requires at least: 3.9
- * Tested up to: 4.4.2
+ * Tested up to: 4.5
  * 
  * Text Domain:       predic-simple-backup
  * Domain Path:       /languages
