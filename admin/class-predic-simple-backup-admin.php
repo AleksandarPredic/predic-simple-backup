@@ -200,7 +200,7 @@ class Predic_Simple_Backup_Admin {
 						/*
 						 * Get database dump
 						 */
-						if (! is_callable('shell_exec') && false === stripos(ini_get('disable_functions'), 'shell_exec') ) {
+						if ( is_callable('shell_exec') && false === stripos(ini_get('disable_functions'), 'shell_exec') ) {
 							
 							// Try to export database and add it to the zip if exec function allowed on server
 							try {
