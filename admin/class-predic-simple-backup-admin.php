@@ -52,7 +52,7 @@ class Predic_Simple_Backup_Admin {
 
            <div class="psb-admin-page-content">
                <p><?php echo esc_html__( 'This plugin is for small sites that do not need fancy WP plugins for backup jobs. It zip all files from Your WP directory and add database dump into zip.', 'predic-simple-backup' ) ?></p>
-               <p><?php echo esc_html__( 'When You click "Backup now" button, please wait untill the proccess is done. Do not navitage away from the page, as this proccess can take long time depending from Your server', 'predic-simple-backup' ) ?></p>
+               <p><?php echo esc_html__( 'When You click "Backup now" button, please wait untill the proccess is done. Do not navigate away from the page, as this proccess can take long time depending from Your server', 'predic-simple-backup' ) ?></p>
            </div>
 
             <div id="psb-admin-page-form">
@@ -196,43 +196,65 @@ class Predic_Simple_Backup_Admin {
                         } else if ( is_file( $directory ) ) {
                                 $zip->addFromString( basename( $directory ), file_get_contents( $directory ) );
                         }
+						
+						/*
+						 * Get database dump
+						 */
+						if (! is_callable('shell_exec') && false === stripos(ini_get('disable_functions'), 'shell_exec') ) {
+							
+							// Try to export database and add it to the zip if exec function allowed on server
+							try {
 
-                        // Try to export database and add it to the zip
-                        try {
+								exec('mysqldump --add-drop-table --user=' . DB_USER . ' --password=' . DB_PASSWORD . ' --host=' . DB_HOST . ' ' . DB_NAME . ' > ' . $database_filename);
 
-                            exec('mysqldump --add-drop-table --user=' . DB_USER . ' --password=' . DB_PASSWORD . ' --host=' . DB_HOST . ' ' . DB_NAME . ' > ' . $database_filename);
-                            
-                            // If database dump file created
-                            if ( file_exists( $database_filename ) ) {
+								// If database dump file created
+								if ( file_exists( $database_filename ) ) {
 
-                                $database_file_content = file_get_contents( $database_filename );
-                                
-                                // If error while dumping file will be empty
-                                if ( empty( $database_file_content ) ) {
-                                    
-                                    unlink( $database_filename );
-                                    $zip->close();
-                                    $this->redirect_to_admin_page( esc_html__( 'Database backup file could not be exported', 'predic-simple-backup' ), 'notice-warning' );
-                                    
-                                }
+									$database_file_content = file_get_contents( $database_filename );
 
-                                // Add database file to zip and delete created file
-                                $zip->addFromString( str_replace( $directory . '/', '', $database_add_to_root ), $database_file_content );
-                                unlink( $database_filename );
-                            
-                            } else {
-                                
-                                $zip->close();
-                                $this->redirect_to_admin_page( esc_html__( 'Database backup file could not be created', 'predic-simple-backup' ), 'notice-warning' );
-                            }
+									// If error while dumping file will be empty
+									if ( empty( $database_file_content ) ) {
 
-                        } catch(Exception $e) {
-                            
-                            $zip->close();
-                            $this->redirect_to_admin_page( $e->getMessage(), 'notice-error' );
+										unlink( $database_filename );
+										$zip->close();
+										$this->redirect_to_admin_page( esc_html__( 'Database backup file could not be exported', 'predic-simple-backup' ), 'notice-warning' );
 
-                        }
+									}
 
+									// Add database file to zip and delete created file
+									$zip->addFromString( str_replace( $directory . '/', '', $database_add_to_root ), $database_file_content );
+									unlink( $database_filename );
+
+								} else {
+
+									$zip->close();
+									$this->redirect_to_admin_page( esc_html__( 'Database backup file could not be created', 'predic-simple-backup' ), 'notice-warning' );
+								}
+
+							} catch(Exception $e) {
+
+								$zip->close();
+								$this->redirect_to_admin_page( $e->getMessage(), 'notice-error' );
+
+							}
+							
+						} else {
+							
+							/*
+							 * Use fallback method if exec function not allowed on server
+							 */
+							$db_dump = $this->dump_database();
+						
+							if ( !empty( $db_dump ) ) {
+								$zip->addFromString( str_replace( $directory . '/', '', $database_add_to_root ), $db_dump );
+							} else {
+								$zip->close();
+								chmod( $destination, 0644 );
+								$this->redirect_to_admin_page( esc_html__( 'Database backup file could not be created', 'predic-simple-backup' ), 'notice-warning' );
+							}
+							
+						}   
+						
                 }
 
                 if ( $zip->close() ) {
@@ -250,6 +272,105 @@ class Predic_Simple_Backup_Admin {
         return false;
         
     }
+	
+	/**
+	 * Return database dump when exec function not allowed on server
+	 * 
+	 * @since 1.1.0
+	 * @global  type  $wpdb  Using the $wpdb Object
+	 * @return  string  database dump without exec function
+	 */
+	private function dump_database() {
+		
+		global $wpdb;
+
+		/* Start dump */
+		
+		$return = 'SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";' . PHP_EOL . PHP_EOL;
+
+		//get all of the tables
+
+		$tables = array();
+
+		// Get all tables
+		$result = $wpdb->get_results( 'SHOW TABLES', ARRAY_N );
+
+		//Store all tables in array
+		foreach ( $result as $key => $value ) {
+
+			if ( isset( $value[0] ) ) {
+				$tables[] = $value[0];
+			} else {
+				continue;
+			}
+
+		}
+
+
+		// Get create table and insert dump for each table
+		foreach( $tables as $table ) {
+			
+			$table = '`' . $table . '`';
+
+			// Get all rows
+			$result = $wpdb->get_results( 'SELECT * FROM '.$table, ARRAY_A );
+
+			// Add drop statement
+			$return.= 'DROP TABLE IF EXISTS '.$table.';';
+			
+			// Get create table statement
+			$create_table = $wpdb->get_results('SHOW CREATE TABLE '.$table, ARRAY_N);
+			$return .= isset( $create_table[0][1] ) ? PHP_EOL . PHP_EOL .$create_table[0][1].";" . PHP_EOL . PHP_EOL . PHP_EOL : "";
+
+			// If no rows than continue
+			if ( count($result) < 1 ) {
+				continue;
+			} 
+
+			// If rows get all results and prepare insert statement
+			$columns = array();
+			$column_values = array();
+			
+			// Get all columns names for insert statement
+			foreach ( $result[0] as $column => $value ) {
+				// Add backticks for each column
+				$columns[] = '`' . $column . '`';
+			}
+
+			/* Start insert statement */
+			$return.= "INSERT INTO " . $table . " (" . implode( ', ', $columns ) . ") VALUES";
+
+			// Set values to store
+			$count_values = count($result);
+			foreach ( $result as $key => $row_values ) {
+
+				// Escape all values in temporary array
+				$tmp_array = array();
+				foreach ( $row_values as $add_single_quotes ) {
+					$tmp_array[] = "'" . str_replace( array( PHP_EOL, "'" ), array( '\n', "''" ), $add_single_quotes ) . "'";
+				}
+				
+				// Add values to insert statement for each row
+				$return .= PHP_EOL;
+				$return .= "(" . implode( ',', $tmp_array ) . ")";
+
+				// add comma if not last key
+				if ( ( $count_values - 1 ) !== $key ) {
+					$return .= ',';
+				} else {
+					// Close statement
+					$return .= ';';
+				}
+
+			}
+
+			// Add empty space
+			$return.= PHP_EOL . PHP_EOL . PHP_EOL;	
+
+		}
+			
+		return $return;
+	}
     
     /**
 	 * List all backup files under the backup folder for the user to download or delete

@@ -4,7 +4,7 @@
  * Plugin Name:       Very simple backup for WordPress
  * Plugin URI:        
  * Description:       This plugin is for small sites that do not need fancy WP plugins for backup jobs. It zip all files from Your WP directory and add database dump into zip.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Author:            Aleksandar Predic
  * Author URI:        http://acapredic.com/
  * License:           
