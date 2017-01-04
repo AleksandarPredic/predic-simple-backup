@@ -7,5 +7,9 @@ It should work on most servers, but I'v tested this plugin only for my needs and
 Just install as any other plugin. Visit "Very Simple Backup" admin menu page and click "Backup now" button. Download created files. That's it!!! 
 Please don't forget to delete backed up files when You download them.
 
+## Issues to fix
+
+* Remove latin letters and dots from generated .zip filename
+
 # Licence
 Licence: MIT
