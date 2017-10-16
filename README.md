@@ -13,3 +13,7 @@ Please don't forget to delete backed up files when You download them.
 
 # Licence
 Licence: MIT
+
+# Important
+
+This repository is not maintained anymore.
